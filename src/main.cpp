@@ -1,3 +1,5 @@
+//commit: git add . && git commit -m "describe what changed" && git push
+
 #include <ESP32Servo.h>
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -7,7 +9,7 @@
 #include "songMidi.h"
 
 int songSelector = 0;
-bool ignoreSignal = true;
+bool ignoreSignal = false;
 bool preloadedStarted = false;
 NoteEvent preloadedNotes[MAX_NOTES];
 
