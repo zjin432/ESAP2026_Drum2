@@ -66,7 +66,7 @@ unsigned long strikeDelayMsec3 = 100;
 bool repeat = false;
 long firstBeatDelayMsec = 1000; 
 
-const int maxSongNotes = 500;
+const int maxSongNotes = 1000;
 
 bool isTomNote(int note) {
   return note == 41 || note == 43 || note == 45 || note == 47 || note == 48 || note == 50;
@@ -125,10 +125,16 @@ void buildPlaylists() {
         if (stick1Count < maxSongNotes) {
           stick1Times[stick1Count++] = noteTime;
         }
-      } 
+        else {
+          Serial.println("buildPlaylists: stick1 playlist full - dropping note");
+        }
+      }
       else {
         if (stick2Count < maxSongNotes) {
           stick2Times[stick2Count++] = noteTime;
+        }
+        else {
+          Serial.println("buildPlaylists: stick2 playlist full - dropping note");
         }
       }
       nextTomGoesToStick1 = !nextTomGoesToStick1;
@@ -136,6 +142,9 @@ void buildPlaylists() {
     else if (isBassNote(pitch)) {
       if (stick3Count < maxSongNotes) {
         stick3Times[stick3Count++] = noteTime;
+      }
+      else {
+        Serial.println("buildPlaylists: bass drum playlist full - dropping note");
       }
     }
   }
