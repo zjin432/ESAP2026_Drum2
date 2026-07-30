@@ -63,7 +63,7 @@ float maxBassBeatsPerSecond = 4.0;
 unsigned long minBassIntervalMsec = (unsigned long)(1000.0 / maxBassBeatsPerSecond); // 500ms
 unsigned long strikeDelayMsec1 = 100; 
 unsigned long strikeDelayMsec2 = 100; 
-unsigned long strikeDelayMsec3 = 100; 
+unsigned long strikeDelayMsec3 = 95;
 
 bool repeat = false;
 long firstBeatDelayMsec = 1000; 
