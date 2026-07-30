@@ -71,7 +71,7 @@ long firstBeatDelayMsec = 1000;
 const int maxSongNotes = 1000;
 
 bool isTomNote(int note) {
-  return note == 41 || note == 43 || note == 45 || note == 47 || note == 48 || note == 50;
+  return note == 45 || note == 47 || note == 48 || note == 50;
 }
 
 bool isBassNote(int note) {
