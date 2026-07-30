@@ -61,8 +61,8 @@ unsigned long minIntervalMsec = (unsigned long)(1000.0 / maxBeatsPerSecond); // 
 unsigned long minStickIntervalMsec = 200; 
 float maxBassBeatsPerSecond = 4.0; 
 unsigned long minBassIntervalMsec = (unsigned long)(1000.0 / maxBassBeatsPerSecond); // 500ms
-unsigned long strikeDelayMsec1 = 100; 
-unsigned long strikeDelayMsec2 = 100; 
+unsigned long strikeDelayMsec1 = 100;
+unsigned long strikeDelayMsec2 = 100;
 unsigned long strikeDelayMsec3 = 95;
 
 bool repeat = false;
@@ -451,11 +451,15 @@ void loop() {
 
   if (testNoteState == TESTNOTE_WAITING && now >= testNoteTriggerTime) {
     drumServo1.write(strikeAngle1);
+    drumServo2.write(strikeAngle2);
+    drumServo3.write(strikeAngle3);
     testNoteStrikeStartTime = now;
     testNoteState = TESTNOTE_STRIKING;
   }
   if (testNoteState == TESTNOTE_STRIKING && now - testNoteStrikeStartTime >= strikeHoldMsec) {
     drumServo1.write(restAngle1);
+    drumServo2.write(restAngle2);
+    drumServo3.write(restAngle3);
     testNoteState = TESTNOTE_IDLE;
   }
 
