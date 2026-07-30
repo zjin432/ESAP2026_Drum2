@@ -4,8 +4,12 @@
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include "midiData.h"
+#include "songMidi.h"
 
+int songSelector = 0;
 bool ignoreSignal = true;
+bool preloadedStarted = false;
+NoteEvent preloadedNotes[MAX_NOTES];
 
 const char* downloadSsid = "GL-MT300N-V2-4e0";
 const char* downloadPassword = "goodlife";
@@ -78,6 +82,24 @@ unsigned long stick2Times[maxSongNotes];
 int stick2Count = 0;
 unsigned long stick3Times[maxSongNotes];
 int stick3Count = 0;
+
+void loadPreloadedSong(int selector) {
+  if (selector < 1 || selector > numSongs) {
+    Serial.println("Invalid songSelector - ignoring");
+    return;
+  }
+  const SongInfo& song = songs[selector - 1];
+  Serial.print("Loading preloaded song: ");
+  Serial.println(song.name);
+
+  for (size_t i = 0; i < song.noteCount; i++) {
+    preloadedNotes[i].pitch = (uint8_t)song.notes[i];
+    preloadedNotes[i].startTimeMs = (uint32_t)song.startMs[i];
+    preloadedNotes[i].durationMs = (uint16_t)(song.endMs[i] - song.startMs[i]);
+    preloadedNotes[i].velocity = (uint8_t)song.velocities[i];
+  }
+  midi.setNotes(preloadedNotes, song.noteCount);
+}
 
 void buildPlaylists() {
   stick1Count = 0;
@@ -314,80 +336,105 @@ void loop() {
   unsigned long now = millis();
   unsigned long currentTime = now - waitingTime;
 
-  if (DownloadStatus == 0) {
-    WiFi.begin(downloadSsid, downloadPassword);
-    Serial.print("Connecting to download WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-      Serial.print(".");
-      delay(500);
+  if (songSelector == 0) {
+    if (DownloadStatus == 0) {
+      WiFi.begin(downloadSsid, downloadPassword);
+      Serial.print("Connecting to download WiFi");
+      while (WiFi.status() != WL_CONNECTED) {
+        Serial.print(".");
+        delay(500);
+      }
+      Serial.println();
+      Serial.println("Download WiFi connected");
+
+      Serial.print("Fetching ");
+      Serial.print(songName);
+      Serial.print(" track ");
+      Serial.println(trackName);
+      midi.fetchByTrackName(songName, trackName);
+
+      buildPlaylists();
+
+      Serial.print("Stick 1 playlist: ");
+      Serial.print(stick1Count);
+      Serial.println(" notes");
+      Serial.print("Stick 2 playlist: ");
+      Serial.print(stick2Count);
+      Serial.println(" notes");
+      Serial.print("Bass drum playlist: ");
+      Serial.print(stick3Count);
+      Serial.println(" notes");
+
+      DownloadStatus = ignoreSignal ? 2 : 1;
     }
-    Serial.println();
-    Serial.println("Download WiFi connected");
 
-    Serial.print("Fetching ");
-    Serial.print(songName);
-    Serial.print(" track ");
-    Serial.println(trackName);
-    midi.fetchByTrackName(songName, trackName);
+    if (DownloadStatus == 1) {
+      WiFi.disconnect();
+      delay(200);
+      WiFi.config(myStaticIP, gatewayIP, subnetMask);
+      WiFi.begin(udpSsid, udpPassword);
 
-    buildPlaylists();
+      Serial.print("Connecting to UDP command WiFi");
+      while (WiFi.status() != WL_CONNECTED) {
+        delay(500);
+        Serial.print(".");
+      }
+      Serial.println();
+      Serial.println("UDP command WiFi connected");
+      Serial.print("IP address: ");
+      Serial.println(WiFi.localIP());
 
-    Serial.print("Stick 1 playlist: ");
-    Serial.print(stick1Count);
-    Serial.println(" notes");
-    Serial.print("Stick 2 playlist: ");
-    Serial.print(stick2Count);
-    Serial.println(" notes");
-    Serial.print("Bass drum playlist: ");
-    Serial.print(stick3Count);
-    Serial.println(" notes");
+      Udp.begin(localPort);
+      Serial.print("Listening for UDP start/sync signal on port ");
+      Serial.println(localPort);
+      Serial.println("Waiting for 'G' to start the piece ('T' to test sync)...");
 
-    DownloadStatus = ignoreSignal ? 2 : 1;
-  }
-
-  if (DownloadStatus == 1) {
-    WiFi.disconnect();
-    delay(200);
-    WiFi.config(myStaticIP, gatewayIP, subnetMask);
-    WiFi.begin(udpSsid, udpPassword);
-
-    Serial.print("Connecting to UDP command WiFi");
-    while (WiFi.status() != WL_CONNECTED) {
-      delay(500);
-      Serial.print(".");
+      DownloadStatus = 2;
     }
-    Serial.println();
-    Serial.println("UDP command WiFi connected");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
 
-    Udp.begin(localPort);
-    Serial.print("Listening for UDP start/sync signal on port ");
-    Serial.println(localPort);
-    Serial.println("Waiting for 'G' to start the piece ('T' to test sync)...");
+    if (DownloadStatus != 2) {
+      return; // still connecting - skip the rest of loop() this pass
+    }
 
-    DownloadStatus = 2;
-  }
-
-  if (DownloadStatus != 2) {
-    return; // still connecting - skip the rest of loop() this pass
-  }
-
-  if (ignoreSignal) {
-    if (state1 == WAITINGTOSTART) {
-      Serial.println("ignoreSignal enabled - starting piece automatically");
-      startPiece(now);
+    if (ignoreSignal) {
+      if (state1 == WAITINGTOSTART) {
+        Serial.println("ignoreSignal enabled - starting piece automatically");
+        startPiece(now);
+      }
+    }
+    else {
+      int msg = checkUDP();
+      if (msg == 1) {
+        Serial.println("Received 'T' - test sync note in ~1s");
+        startTestNote(now);
+      }
+      else if (msg == 2) {
+        Serial.println("Received 'G' - starting piece");
+        startPiece(now);
+      }
     }
   }
   else {
-    int msg = checkUDP();
-    if (msg == 1) {
-      Serial.println("Received 'T' - test sync note in ~1s");
-      startTestNote(now);
-    }
-    else if (msg == 2) {
-      Serial.println("Received 'G' - starting piece");
+    if (!preloadedStarted) {
+      Serial.print("songSelector = ");
+      Serial.print(songSelector);
+      Serial.println(" - loading preloaded song, skipping WiFi");
+      loadPreloadedSong(songSelector);
+      buildPlaylists();
+
+      Serial.print("Stick 1 playlist: ");
+      Serial.print(stick1Count);
+      Serial.println(" notes");
+      Serial.print("Stick 2 playlist: ");
+      Serial.print(stick2Count);
+      Serial.println(" notes");
+      Serial.print("Bass drum playlist: ");
+      Serial.print(stick3Count);
+      Serial.println(" notes");
+
       startPiece(now);
+      currentTime = now - waitingTime;
+      preloadedStarted = true;
     }
   }
 
