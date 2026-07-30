@@ -504,7 +504,6 @@ void loop() {
       state2 = DONE;
       state3 = DONE;
       drumServo3.write(restAngle3);
-      drumServo3.detach();
       Serial.println("Piece finished.");
     }
   }
